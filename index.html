@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Easy반 - 학급 도구</title>
+  <style>
+    :root {
+      --bg: #ffffff;
+      --fg: #0f172a;
+      --muted: #64748b;
+      --card: #f8fafc;
+      --accent: #2563eb;
+      --accent-2: #10b981;
+      --border: #e2e8f0;
+    }
+    .dark {
+      --bg: #0b1220;
+      --fg: #e5e7eb;
+      --muted: #9aa4b2;
+      --card: #0f172a;
+      --accent: #60a5fa;
+      --accent-2: #34d399;
+      --border: #1f2937;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, "Noto Sans KR", Apple SD Gothic Neo, sans-serif;
+      background: var(--bg); color: var(--fg);
+    }
+    header { position: sticky; top: 0; z-index: 10; background: var(--bg); border-bottom: 1px solid var(--border); }
+    .container { max-width: 1100px; margin: 0 auto; padding: 16px; }
+    .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+    h1 { margin: 0; font-size: 22px; }
+    .spacer { flex: 1; }
+    button, select, input, textarea { color: var(--fg); background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; }
+    button { cursor: pointer; transition: transform .02s ease-in-out; }
+    button:active { transform: scale(0.98); }
+    .btn-primary { background: var(--accent); color: white; border-color: transparent; }
+    .btn-success { background: var(--accent-2); color: white; border-color: transparent; }
+    .tabs { display: flex; gap: 8px; padding: 12px 0; flex-wrap: wrap; }
+    .tab { padding: 10px 14px; border: 1px solid var(--border); background: var(--card); border-radius: 999px; cursor: pointer; }
+    .tab.active { background: var(--accent); color: white; border-color: transparent; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 16px; padding: 16px; }
+    .grid { display: grid; gap: 8px; }
+    .grid-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    /* 자리표 */
+    .seat-grid { display: grid; gap: 8px; }
+    .seat { background: white; color: #0f172a; border-radius: 10px; padding: 10px; border: 1px solid var(--border); text-align: center; font-weight: 600; }
+    .dark .seat { background: #111827; color: #e5e7eb; }
+
+    /* 소음계 */
+    .meter { height: 18px; background: #111827; border-radius: 999px; overflow: hidden; position: relative; }
+    .meter-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #10b981, #f59e0b, #ef4444); transition: width .1s linear; }
+    .meter-label { font-variant-numeric: tabular-nums; }
+
+    /* 알림장 */
+    textarea { width: 100%; min-height: 120px; resize: vertical; }
+    .notice-preview { white-space: pre-wrap; border-left: 4px solid var(--accent); padding-left: 12px; background: rgba(0,0,0,0.02); border-radius: 8px; }
+    .dark .notice-preview { background: rgba(255,255,255,0.04); }
+
+    /* 리액션 */
+    .reaction { position: fixed; pointer-events: none; font-size: var(--rx-size, 28px); line-height: 1; animation: rise 900ms ease-out forwards; filter: drop-shadow(0 2px 4px rgba(0,0,0,.3)); }
+    @keyframes rise { from { transform: translate(-50%, 0) scale(.9); opacity: 0; } 40% { opacity: 1; } to { transform: translate(-50%, -120px) scale(1.2); opacity: 0; } }
+
+    /* 점수판 */
+    .score-wrap { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap:12px; }
+    .score-card { display:grid; place-items:center; padding:16px; border:1px solid var(--border); border-radius:16px; background:var(--card); user-select:none; }
+    .score-title { font-weight:700; margin-bottom:8px; cursor:pointer; }
+    .score-value { font-size: clamp(48px, 12vw, 120px); font-weight: 800; line-height:1; }
+    .score-hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+
+    footer { text-align: center; color: var(--muted); padding: 24px; }
+      
+    /* === 팝업(확대 보기) === */
+    .modal{position:fixed; inset:0; display:grid; place-items:center; z-index:1000;}
+    .modal[hidden]{display:none;}
+    .modal-backdrop{position:absolute; inset:0; background:rgba(0,0,0,.5); backdrop-filter:saturate(120%) blur(1px);}
+    .modal-content{position:relative; background:var(--bg); color:var(--fg); border:1px solid var(--border); border-radius:16px; padding:16px; width:min(92vw,800px); box-shadow:0 10px 30px rgba(0,0,0,.3);}
+    .big-time{font-variant-numeric:tabular-nums; text-align:center; font-weight:800; line-height:1; padding:16px; font-size:clamp(48px, 16vw, 180px);}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container row">
+      <h1>Easy반 · 학급 도구</h1>
+      <div class="spacer"></div>
+      <button id="darkToggle" aria-pressed="false" title="다크모드 토글">🌙 다크모드</button>
+      <button id="saveAll" class="btn-success" title="입력값 저장">저장</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <nav class="tabs" role="tablist" aria-label="기능 탭">
+      <button class="tab active" data-tab="seating" role="tab" aria-selected="true">자리 바꾸기</button>
+      <button class="tab" data-tab="election" role="tab" aria-selected="false">학급 선거(비밀투표)</button>
+      <button class="tab" data-tab="noise" role="tab" aria-selected="false">소음 측정기</button>
+      <button class="tab" data-tab="notice" role="tab" aria-selected="false">알림장</button>
+      <button class="tab" data-tab="score" role="tab" aria-selected="false">점수판</button>
+      <button class="tab" data-tab="timer" role="tab" aria-selected="false">타이머/스톱워치</button>
+    </nav>
+
+    <!-- 자리 바꾸기 -->
+    <section id="seating" class="card" role="tabpanel">
+      <div class="grid grid-2" style="gap:16px;">
+        <div>
+          <label>학생 명단 (줄바꿈으로 구분)</label>
+          <textarea id="studentList" placeholder="예)홍길동\n임꺽정\n이순신"></textarea>
+          <div class="row" style="margin-top:8px; gap:8px; align-items: center;">
+            <label for="cols">가로 칸</label>
+            <input id="cols" type="number" min="2" max="10" value="4" style="width:90px;">
+            <label for="rows">세로 줄</label>
+            <input id="rows" type="number" min="2" max="10" value="5" style="width:90px;">
+            <button id="shuffleSeats" class="btn-primary">자리 섞기</button>
+            <button id="clearSeats">초기화</button>
+          </div>
+        </div>
+        <div>
+          <div class="row" style="justify-content: space-between; align-items:center;">
+            <strong>자리표</strong>
+            <small id="seatCount" class="muted"></small>
+          </div>
+          <div id="seatGrid" class="seat-grid" aria-live="polite"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 학급 선거 -->
+    <section id="election" class="card" role="tabpanel" hidden>
+      <div class="grid grid-2" style="gap:16px;">
+        <div>
+          <label>후보자 명단 (줄바꿈으로 구분)</label>
+          <textarea id="candidates" placeholder="예)홍길동\n임꺽정\n이순신"></textarea>
+          <div class="row" style="margin-top:8px; gap:8px; flex-wrap:wrap;">
+            <div class="row" style="gap:8px; align-items:center;">
+              <label for="requiredVotes">투표 인원</label>
+              <input id="requiredVotes" type="number" min="1" placeholder="예: 25" style="width:100px;">
+            </div>
+            <button id="startVote" class="btn-primary">투표 시작</button>
+            <button id="endVote">투표 마감 및 개표</button>
+            <button id="resetVote">초기화</button>
+          </div>
+          <p class="muted">* 숫자키 <strong>1–9</strong>로 <strong>빠른 투표</strong> 가능</p>
+        </div>
+        <div>
+          <div class="row" style="gap:8px; align-items:center;">
+            <strong>투표 화면</strong>
+            <span id="voteStatus" class="muted">대기 중</span>
+          </div>
+          <div id="ballot" class="grid grid-2" style="margin-top:8px;"></div>
+          <div id="results" style="margin-top:12px;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 소음 측정기 -->
+    <section id="noise" class="card" role="tabpanel" hidden>
+      <div class="row" style="gap:8px; align-items:center;">
+        <button id="startNoise" class="btn-primary">측정 시작</button>
+        <button id="stopNoise">정지</button>
+        <span class="meter-label" id="dbLabel">대기 중</span>
+      </div>
+      <div class="meter" style="margin-top:10px;">
+        <div class="meter-fill" id="meterFill"></div>
+      </div>
+      <p class="muted" style="margin-top:8px;">* 마이크 권한이 필요합니다. 상대적인 소음 지표이며 실제 데시벨과 차이가 있을 수 있습니다.</p>
+    </section>
+
+    <!-- 알림장 -->
+    <section id="notice" class="card" role="tabpanel" hidden>
+      <div class="grid grid-2" style="gap:16px;">
+        <div>
+          <label for="noticeDate">날짜</label>
+          <input id="noticeDate" type="date" />
+          <label style="margin-top:8px; display:block;">알림장 내용</label>
+          <textarea id="noticeText" placeholder="항목은 줄바꿈으로 작성하세요"></textarea>
+          <div class="row" style="margin-top:8px; gap:8px;">
+            <button id="previewNotice" class="btn-primary">미리보기</button>
+            <button id="downloadNotice">TXT로 저장</button>
+            <button id="clearNotice">지우기</button>
+          </div>
+        </div>
+        <div>
+          <strong>미리보기</strong>
+          <div id="noticePreview" class="notice-preview" style="margin-top:8px;">아직 내용이 없습니다.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 점수판 -->
+    <section id="score" class="card" role="tabpanel" hidden>
+      <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+        <button id="scoreAdd" class="btn-primary">팀 추가</button>
+        <button id="scoreRemove">팀 삭제</button>
+        <button id="scoreReset">점수 초기화</button>
+      </div>
+      <div id="scoreWrap" class="score-wrap" aria-live="polite"></div>
+      <div id="teamEditor" class="grid" style="gap:8px; margin-top:12px;"></div>
+      <p class="score-hint">마우스 <strong>좌클릭</strong> → +1, <strong>우클릭</strong> → -1 (우클릭 메뉴는 자동으로 막습니다)</p>
+    </section>
+
+    <!-- 타이머/스톱워치 -->
+    <section id="timer" class="card" role="tabpanel" hidden>
+      <div class="grid" style="gap:12px;">
+        <div class="card" style="padding:12px;">
+          <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
+            <strong>타이머</strong>
+            <input id="timerInput" placeholder="예: 10:00 또는 600" style="width:160px;" />
+            <button id="timerSet">시간 설정</button>
+            <button id="timerStartPause" class="btn-primary">시작</button>
+            <button id="timerReset">리셋</button>
+            <span id="timerDisplay" style="font-weight:800; font-variant-numeric:tabular-nums; margin-left:8px;">00:00</span>
+            <button id="timerZoom" title="타이머 크게 보기">🔍 확대</button>
+          </div>
+        </div>
+        <div class="card" style="padding:12px;">
+          <div class="row" style="gap:8px; align-items:center; flex-wrap:wrap;">
+            <strong>스톱워치</strong>
+            <button id="swStartStop" class="btn-primary">시작</button>
+            <button id="swLap">랩</button>
+            <button id="swReset">리셋</button>
+            <span id="swDisplay" style="font-weight:800; font-variant-numeric:tabular-nums; margin-left:8px;">00:00.0</span>
+            <button id="swZoom" title="스톱워치 크게 보기">🔍 확대</button>
+          </div>
+          <div id="swLaps" class="grid" style="margin-top:8px; gap:6px;"></div>
+        </div>
+      </div>
+    </section>
+  
+
+    <!-- 확대 모달 -->
+    <div id="timeModal" class="modal" role="dialog" aria-modal="true" hidden>
+      <div class="modal-backdrop" id="timeModalBackdrop"></div>
+      <div class="modal-content">
+        <div class="row" style="justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <strong id="timeModalTitle">확대 보기</strong>
+          <button id="timeModalClose" aria-label="닫기">닫기</button>
+        </div>
+        <div id="timeModalDisplay" class="big-time">00:00</div>
+      </div>
+    </div>
+  </main>
+
+  <footer>© <span id="year"></span> Easy반 — 교실에서 바로 쓰는 가벼운 웹도구</footer>
+
+  <script>
+    // 유틸
+    const $ = (sel, parent=document) => parent.querySelector(sel);
+    const $$ = (sel, parent=document) => Array.from(parent.querySelectorAll(sel));
+
+    // 상태
+    const state = { 
+      dark:false, 
+      voting:false, 
+      votes:{}, 
+      requiredVotes:0, 
+      audio:{ ctx:null, analyser:null, raf:0, stream:null },
+      score:[{name:'A팀', score:0},{name:'B팀', score:0}],
+      // 타이머 & 스톱워치
+      tmr:{ running:false, initial:0, remaining:0, interval:0 },
+      sw:{ running:false, startMs:0, elapsedMs:0, interval:0, laps:[] }
+    };
+
+    // 테마
+    function applyTheme(dark){
+      document.documentElement.classList.toggle('dark', dark);
+      const btn=$('#darkToggle'); if(btn){ btn.setAttribute('aria-pressed', String(dark)); btn.textContent = dark ? '☀️ 라이트모드' : '🌙 다크모드'; }
+      try{ localStorage.setItem('easyban:dark', dark?'1':'0'); }catch(e){}
+    }
+
+    // 탭
+    function activateTab(id){
+      $$('.tab').forEach(t=>{ const active=t.dataset.tab===id; t.classList.toggle('active',active); t.setAttribute('aria-selected', String(active)); });
+      ['seating','election','noise','notice','score','timer'].forEach(sec=>{ const el=document.getElementById(sec); if(el) el.hidden = sec!==id; });
+    }
+
+    // 자리 섞기
+    function shuffle(a){ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+    function renderSeats(){
+      const names=$('#studentList').value.split(/\n+/).map(s=>s.trim()).filter(Boolean);
+      const cols=Math.max(2, Math.min(10, parseInt($('#cols').value||'4',10)));
+      const rows=Math.max(2, Math.min(10, parseInt($('#rows').value||'5',10)));
+      const grid=$('#seatGrid'); grid.style.gridTemplateColumns=`repeat(${cols}, minmax(0,1fr))`; grid.innerHTML='';
+      const total=cols*rows; const filled=shuffle(names).slice(0,total);
+      for(let i=0;i<total;i++){ const div=document.createElement('div'); div.className='seat'; div.textContent=filled[i]||''; grid.appendChild(div); }
+      $('#seatCount').textContent = `좌석 ${total}개 / 학생 ${names.length}명`;
+    }
+
+    // 선거
+    function parseCandidates(){ return $('#candidates').value.split(/\n+/).map(s=>s.trim()).filter(Boolean); }
+    function totalVotes(){ return Object.values(state.votes).reduce((a,b)=>a+b,0); }
+    function updateVoteStatus(){ const t=totalVotes(); const need=state.requiredVotes||0; $('#voteStatus').textContent = state.voting ? (need>0?`진행 중(비밀투표) · ${t}/${need}`:`진행 중(비밀투표) · ${t}표`) : '마감'; }
+    function renderResults(hide){ const box=$('#results'); if(hide&&state.voting){ box.innerHTML='<em class="muted">진행 중: 개표 결과는 숨김</em>'; return; } const entries=Object.entries(state.votes); if(!entries.length){ box.textContent='아직 데이터가 없습니다.'; return; } entries.sort((a,b)=>b[1]-a[1]); const tot=totalVotes()||1; box.innerHTML = '<pre>' + entries.map(([n,v])=>`${n}: ${v}표 (${Math.round(v/tot*100)}%)`).join('\n') + '</pre>'; }
+    function renderBallot(hide){ const ballot=$('#ballot'); ballot.innerHTML=''; const cand=parseCandidates(); if(!cand.length){ state.votes={}; $('#results').innerHTML='<em class="muted">후보자 명단을 입력하면 투표를 시작할 수 있어요.</em>'; updateVoteStatus(); return; } cand.forEach(c=>{ if(!(c in state.votes)) state.votes[c]=0; const btn=document.createElement('button'); btn.className='btn-primary'; btn.textContent=c + (state.voting?' · 투표':''); btn.disabled=!state.voting; btn.addEventListener('click',()=>{ if(!state.voting) return; state.votes[c]++; renderResults(hide); maybeEndVoting(); }); ballot.appendChild(btn); }); renderResults(hide); updateVoteStatus(); }
+    function endVoting(reason){ state.voting=false; renderResults(false); updateVoteStatus(); if(reason){ const prev=$('#results').innerHTML; $('#results').innerHTML = `<div class="muted">${reason}</div>` + prev; } }
+    function maybeEndVoting(){ const need=state.requiredVotes||0; if(state.voting && need>0 && totalVotes()>=need){ endVoting('자동 마감: 설정한 인원 수에 도달했습니다.'); } else { updateVoteStatus(); } }
+    function resetVote(){ state.votes={}; state.voting=false; $('#voteStatus').textContent='대기 중'; renderBallot(true); }
+
+    // 리액션 (투표 중 비활성)
+    function reactAt(x,y,emoji='🎉',size='50vmin'){ const el=document.createElement('div'); el.className='reaction'; el.textContent=emoji; el.style.left=x+'px'; el.style.top=y+'px'; el.style.position='fixed'; el.style.setProperty('--rx-size', size); document.body.appendChild(el); setTimeout(()=>el.remove(),1000); }
+    window.addEventListener('keydown', (e)=>{
+      const tag=(e.target&&e.target.tagName)?e.target.tagName.toLowerCase():''; if(tag==='input'||tag==='textarea'||e.isComposing) return; const activeTab=document.querySelector('.tab.active')?.dataset.tab;
+      const map={ q:'👏', w:'👍', e:'🎉', r:'⭐', t:'🤫' };
+      const k=e.key.toLowerCase();
+      if(map[k]){ if(!(activeTab==='election' && state.voting)){ const x=(innerWidth/2)+(Math.random()*120-60); const y=(innerHeight/2)+(Math.random()*80-40); reactAt(x, y, map[k]); } }
+      if(activeTab==='election' && state.voting && /^[1-9]$/.test(e.key)){ const idx=parseInt(e.key,10)-1; const buttons=$$('#ballot button'); if(idx<buttons.length){ const label=buttons[idx].textContent.replace(/\s*·\s*투표$/, ''); const candName=parseCandidates().find(c=>label.startsWith(c))||parseCandidates()[idx]; if(candName){ state.votes[candName]=(state.votes[candName]||0)+1; renderResults(true); maybeEndVoting(); } }
+      }
+    });
+
+    // 소음계
+    async function startNoise(){ if(state.audio.ctx) return; const ctx=new (window.AudioContext||window.webkitAudioContext)(); const stream=await navigator.mediaDevices.getUserMedia({audio:true}); const source=ctx.createMediaStreamSource(stream); const analyser=ctx.createAnalyser(); analyser.fftSize=2048; source.connect(analyser); state.audio={ctx,analyser,stream,raf:0}; loopNoise(); $('#dbLabel').textContent='측정 중…'; }
+    function stopNoise(){ if(!state.audio.ctx) return; cancelAnimationFrame(state.audio.raf); state.audio.ctx.close(); state.audio.stream.getTracks().forEach(t=>t.stop()); state.audio = { ctx:null, analyser:null, stream:null, raf:0 }; $('#meterFill').style.width='0%'; $('#dbLabel').textContent='대기 중'; }
+    function loopNoise(){ const {analyser}=state.audio; const data=new Uint8Array(analyser.fftSize); const update=()=>{ analyser.getByteTimeDomainData(data); let sum=0; for(let i=0;i<data.length;i++){ const v=(data[i]-128)/128; sum+=v*v; } const rms=Math.sqrt(sum/data.length); const db=20*Math.log10(rms+1e-6)+60; const pct=Math.max(0, Math.min(100, (db/60)*100)); $('#meterFill').style.width=pct.toFixed(1)+'%'; $('#dbLabel').textContent=`소음 지표: ${db.toFixed(1)} dB*`; state.audio.raf=requestAnimationFrame(update); }; update(); }
+
+    // === 확대 모달 ===
+    let timeModalMode = null; // 'timer' | 'sw' | null
+    function openTimeModal(mode){
+      timeModalMode = mode;
+      const modal = document.getElementById('timeModal');
+      const title = document.getElementById('timeModalTitle');
+      title.textContent = mode==='timer' ? '타이머' : '스톱워치';
+      updateTimeModal();
+      modal.hidden = false;
+      document.addEventListener('keydown', escCloser);
+    }
+    function closeTimeModal(){
+      const modal = document.getElementById('timeModal');
+      modal.hidden = true;
+      timeModalMode = null;
+      document.removeEventListener('keydown', escCloser);
+    }
+    function escCloser(e){ if(e.key==='Escape') closeTimeModal(); }
+    function updateTimeModal(){
+      const disp = document.getElementById('timeModalDisplay');
+      if(!disp || document.getElementById('timeModal').hidden) return;
+      if(timeModalMode==='timer'){ disp.textContent = formatTime(state.tmr.remaining); }
+      else if(timeModalMode==='sw'){ disp.textContent = formatMs(state.sw.elapsedMs); }
+    }
+
+    // 알림장
+    function previewNotice(){ const date=$('#noticeDate').value||new Date().toISOString().slice(0,10); const lines=$('#noticeText').value.split(/\n+/).map(s=>s.trim()).filter(Boolean); const text=[[`[알림장] ${date}`,''].concat(lines.map(t=>`• ${t}`)).join('\n')].join(''); $('#noticePreview').textContent=text||'아직 내용이 없습니다.'; return text; }
+    function downloadNotice(){ const text=previewNotice(); const blob=new Blob([text],{type:'text/plain;charset=utf-8'}); const url=URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download=`알림장_${new Date().toISOString().slice(0,10)}.txt`; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url); }
+
+    // 유튜브 파싱(테스트용)
+    function parseTimeToSeconds(t){ if(!t) return 0; if(/^\d+$/.test(t)) return parseInt(t,10); const m=String(t).match(/(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?/i); if(!m) return 0; const h=parseInt(m[1]||'0',10), mi=parseInt(m[2]||'0',10), s=parseInt(m[3]||'0',10); return h*3600+mi*60+s; }
+    function extractYouTubeId(url){ try{ const u=new URL(url); const host=u.hostname.replace(/^www\./,''); if(host==='youtu.be'){ return u.pathname.slice(1); } if(host==='youtube.com'||host==='m.youtube.com'||host==='youtube-nocookie.com'){ if(u.pathname.startsWith('/watch')) return u.searchParams.get('v'); if(u.pathname.startsWith('/shorts/')) return u.pathname.split('/')[2]; if(u.pathname.startsWith('/embed/')) return u.pathname.split('/')[2]; } return null; }catch(e){ return null; } }
+    function buildEmbedUrl(inputUrl){ const u=new URL(inputUrl); const id=extractYouTubeId(inputUrl); if(!id) return null; const start=parseTimeToSeconds(u.searchParams.get('t')||u.searchParams.get('start')); const params=new URLSearchParams({rel:'0', modestbranding:'1'}); if(start>0) params.set('start', String(start)); return `https://www.youtube.com/embed/${encodeURIComponent(id)}?${params.toString()}`; }
+
+    // 점수판
+    function renderScoreboard(){
+      const wrap = $('#scoreWrap');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      state.score.forEach((team, idx) => {
+        const card = document.createElement('div');
+        card.className = 'score-card';
+        card.setAttribute('data-idx', idx);
+        card.innerHTML = `<div class=\"score-title\" title=\"이름을 클릭하면 변경합니다\">${team.name}</div><div class=\"score-value\">${team.score}</div>`;
+        card.querySelector('.score-title').addEventListener('click', () => {
+          const next = prompt('팀 이름을 입력하세요', team.name);
+          if (next !== null) { team.name = (next.trim() || defaultTeamName(idx)); updateScoreCard(card, team); saveSilently(); renderTeamEditor(); }
+        });
+        card.addEventListener('click', (e) => { if (e.button!==0) return; team.score += 1; updateScoreCard(card, team); });
+        card.addEventListener('contextmenu', (e) => { e.preventDefault(); team.score = Math.max(0, team.score - 1); updateScoreCard(card, team); });
+        wrap.appendChild(card);
+      });
+    }
+    function updateScoreCard(card, team){ card.querySelector('.score-title').textContent = team.name; card.querySelector('.score-value').textContent = team.score; }
+    function defaultTeamName(i){
+      const letters='ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      let n=i, name='';
+      do { name = letters[n%26] + name; n = Math.floor(n/26) - 1; } while(n>=0);
+      return name + '팀';
+    }
+    function addTeam(){ state.score.push({ name: defaultTeamName(state.score.length), score: 0 }); renderScoreboard(); renderTeamEditor(); }
+    function removeTeam(){ if (state.score.length <= 2) { alert('최소 2팀은 유지해야 합니다.'); return; } state.score.pop(); renderScoreboard(); renderTeamEditor(); }
+    function removeTeamAt(idx){ if (state.score.length <= 2) { alert('최소 2팀은 유지해야 합니다.'); return; } state.score.splice(idx,1); renderScoreboard(); renderTeamEditor(); }
+    function saveSilently(){ try{ const d = JSON.parse(localStorage.getItem('easyban:data')||'{}'); d.score = state.score; localStorage.setItem('easyban:data', JSON.stringify(d)); }catch(e){} }
+    function normalizeScore(){
+      if (!Array.isArray(state.score)) state.score = [];
+      while(state.score.length < 2){
+        const i = state.score.length;
+        state.score.push({ name: defaultTeamName(i), score: 0 });
+      }
+      state.score = state.score.map((t,i)=>({
+        name: (t && typeof t.name==='string' && t.name.trim()) ? t.name : defaultTeamName(i),
+        score: Math.max(0, Number.isFinite(Number(t && t.score)) ? Number(t.score) : 0)
+      }));
+    }
+    function renderTeamEditor(){
+      const wrap = document.getElementById('teamEditor');
+      if (!wrap) return;
+      wrap.innerHTML = '';
+      state.score.forEach((team, idx)=>{
+        const row = document.createElement('div');
+        row.className = 'row';
+        row.style.gap = '8px';
+        row.innerHTML = `
+          <input type=\"text\" data-idx=\"${idx}\" value=\"${team.name}\" style=\"flex:1; min-width:140px;\" />
+          <button data-del=\"${idx}\">삭제</button>
+        `;
+        const input = row.querySelector('input');
+        input.addEventListener('input', (e)=>{ const v = e.target.value.trim(); state.score[idx].name = v || defaultTeamName(idx); renderScoreboard(); saveSilently(); });
+        const delBtn = row.querySelector('button');
+        delBtn.addEventListener('click', ()=> removeTeamAt(idx));
+        wrap.appendChild(row);
+      });
+    }
+
+    // 타이머/스톱워치 유틸/로직
+    function parseHMS(input){
+      if(input==null) return 0; var s=String(input).trim(); if(!s) return 0;
+      if(/^\d+$/.test(s)) return parseInt(s,10);
+      var parts=s.split(':').map(Number);
+      if(parts.some(function(n){return Number.isNaN(n);} )) return 0;
+      if(parts.length===2){ var m=parts[0], sec=parts[1]; return m*60+sec; }
+      if(parts.length===3){ var h=parts[0], m2=parts[1], s2=parts[2]; return h*3600+m2*60+s2; }
+      return 0;
+    }
+    function formatTime(total){ total=Math.max(0, Math.floor(total)); var h=Math.floor(total/3600); var m=Math.floor((total%3600)/60); var s=total%60; var pad=function(n){ n=String(n); return n.length<2?('0'+n):n; }; return h>0?(pad(h)+':'+pad(m)+':'+pad(s)):(pad(m)+':'+pad(s)); }
+    function formatMs(ms){ ms=Math.max(0, ms|0); var total=Math.floor(ms/1000); var frac=Math.floor((ms%1000)/100); return formatTime(total)+'.'+frac; }
+
+    function renderTimerUI(){ var el=$('#timerDisplay'); if(el) el.textContent = formatTime(state.tmr.remaining); var b=$('#timerStartPause'); if(b) b.textContent = state.tmr.running?'일시정지':'시작'; updateTimeModal(); }
+    function setTimerFromInput(){ var inp=$('#timerInput'); var v=inp?inp.value:''; var sec=parseHMS(v); state.tmr.initial=sec; state.tmr.remaining=sec; renderTimerUI(); }
+    function timerTick(){ if(!state.tmr.running) return; state.tmr.remaining=Math.max(0, state.tmr.remaining-1); renderTimerUI(); if(state.tmr.remaining===0){ pauseTimer(); } }
+    function startTimer(){ if(state.tmr.running) return; if(state.tmr.remaining<=0){ if(state.tmr.initial>0){ state.tmr.remaining=state.tmr.initial; } else { setTimerFromInput(); } }
+      state.tmr.running=true; renderTimerUI(); clearInterval(state.tmr.interval); state.tmr.interval=setInterval(timerTick,1000); }
+    function pauseTimer(){ if(!state.tmr.running) return; state.tmr.running=false; renderTimerUI(); clearInterval(state.tmr.interval); }
+    function resetTimer(){ state.tmr.running=false; clearInterval(state.tmr.interval); state.tmr.remaining=state.tmr.initial; renderTimerUI(); }
+
+    function renderStopwatch(){ var d=$('#swDisplay'); if(d) d.textContent = formatMs(state.sw.elapsedMs); var s=$('#swStartStop'); if(s) s.textContent = state.sw.running?'정지':'시작'; var laps=$('#swLaps'); if(laps){ laps.innerHTML= state.sw.laps.map(function(ms,i){ return '#'+(i+1)+' — '+formatMs(ms); }).join(''); } updateTimeModal(); }
+    function swTick(){ if(!state.sw.running) return; var now=Date.now(); state.sw.elapsedMs += (now - state.sw.startMs); state.sw.startMs=now; renderStopwatch(); }
+    function startStopwatch(){ if(state.sw.running) return; state.sw.running=true; state.sw.startMs=Date.now(); clearInterval(state.sw.interval); state.sw.interval=setInterval(swTick,100); renderStopwatch(); }
+    function stopStopwatch(){ if(!state.sw.running) return; swTick(); state.sw.running=false; clearInterval(state.sw.interval); renderStopwatch(); }
+    function resetStopwatch(){ state.sw.running=false; clearInterval(state.sw.interval); state.sw.elapsedMs=0; state.sw.laps=[]; renderStopwatch(); }
+    function lapStopwatch(){ if(!state.sw.running) return; swTick(); state.sw.laps.push(state.sw.elapsedMs); renderStopwatch(); }
+
+    // 저장/로드
+    function saveAll(){ 
+      const payload={ 
+        students:$('#studentList').value, cols:$('#cols').value, rows:$('#rows').value,
+        candidates:$('#candidates').value, requiredVotes:$('#requiredVotes').value,
+        noticeDate:$('#noticeDate').value, noticeText:$('#noticeText').value,
+        ytUrl:$('#ytUrl')?$('#ytUrl').value:'', dark:document.documentElement.classList.contains('dark'),
+        score: state.score
+      }; 
+      try{ localStorage.setItem('easyban:data', JSON.stringify(payload)); }catch(e){} 
+      alert('저장 완료! (이 브라우저에만 저장됩니다)'); 
+    }
+    function loadAll(){ 
+      try{ 
+        const raw=localStorage.getItem('easyban:data');
+        if(!raw){
+          state.score=[{name:'A팀',score:0},{name:'B팀',score:0}];
+          return;
+        }
+        const d=JSON.parse(raw);
+        if(d.students) $('#studentList').value=d.students; if(d.cols) $('#cols').value=d.cols; if(d.rows) $('#rows').value=d.rows;
+        if(d.candidates) $('#candidates').value=d.candidates; if(d.requiredVotes) $('#requiredVotes').value=d.requiredVotes;
+        if(d.noticeDate) $('#noticeDate').value=d.noticeDate; if(d.noticeText) $('#noticeText').value=d.noticeText;
+        if(d.ytUrl && $('#ytUrl')) $('#ytUrl').value=d.ytUrl; applyTheme(!!d.dark);
+        if(Array.isArray(d.score) && d.score.length){ state.score = d.score; }
+      }catch(e){}
+    }
+
+    // ===== 자동 테스트 일부 (점수판 핵심 TC) =====
+    function runDevTests(){ try{
+      console.group('[Easy반] 자동 테스트 시작');
+      const prev={ votes:{...state.votes}, voting:state.voting, requiredVotes:state.requiredVotes, candidates:$('#candidates').value, students:$('#studentList').value, cols:$('#cols').value, rows:$('#rows').value, ytUrl:$('#ytUrl')?$('#ytUrl').value:'', score: JSON.parse(JSON.stringify(state.score)) };
+      activateTab('score');
+      state.score=[{name:'А팀',score:0},{name:'B팀',score:0}]; renderScoreboard(); renderTeamEditor();
+      console.assert(state.score[0].name==='А팀' && state.score[1].name==='B팀','TC17 실패: 기본 이름 A팀/B팀');
+      const cards=$$('#scoreWrap .score-card');
+      cards[0].dispatchEvent(new MouseEvent('click', {bubbles:true}));
+      console.assert(state.score[0].score===1,'TC15 실패: 좌클릭 +1');
+      cards[0].dispatchEvent(new MouseEvent('contextmenu', {bubbles:true}));
+      console.assert(state.score[0].score===0,'TC16 실패: 우클릭 -1, 0 아래로는 감소 금지');
+      // 복구
+      state.votes=prev.votes; state.voting=prev.voting; state.requiredVotes=prev.requiredVotes; activateTab('seating');
+      $('#candidates').value=prev.candidates; $('#studentList').value=prev.students; $('#cols').value=prev.cols; $('#rows').value=prev.rows; if($('#ytUrl')) $('#ytUrl').value=prev.ytUrl; state.score=prev.score; renderBallot(true); renderSeats(); renderScoreboard(); renderTeamEditor();
+      console.groupEnd();
+    }catch(err){ console.error('테스트 실행 중 오류', err); }}
+
+    // 바인딩
+    document.addEventListener('DOMContentLoaded', ()=>{
+      $('#year').textContent=new Date().getFullYear();
+      try{ applyTheme(localStorage.getItem('easyban:dark')==='1'); }catch(e){}
+      loadAll();
+      normalizeScore();
+      $$('.tab').forEach(btn=>btn.addEventListener('click',()=>activateTab(btn.dataset.tab)));
+      $('#shuffleSeats').addEventListener('click', renderSeats);
+      $('#clearSeats').addEventListener('click', ()=>{ $('#seatGrid').innerHTML=''; $('#seatCount').textContent=''; });
+      $('#startVote').addEventListener('click', ()=>{ if(parseCandidates().length===0){ alert('후보자 명단을 입력해주세요.'); return; } const val=parseInt($('#requiredVotes').value||'0',10); state.requiredVotes=Number.isFinite(val)&&val>0?val:0; state.voting=true; $('#voteStatus').textContent='진행 중(비밀투표)'; renderBallot(true); updateVoteStatus(); });
+      $('#endVote').addEventListener('click', ()=>endVoting());
+      $('#resetVote').addEventListener('click', resetVote);
+      renderBallot(true);
+      $('#startNoise').addEventListener('click', ()=>startNoise().catch(err=>alert('마이크 접근 실패: '+err)));
+      $('#stopNoise').addEventListener('click', stopNoise);
+      $('#previewNotice').addEventListener('click', previewNotice);
+      $('#downloadNotice').addEventListener('click', downloadNotice);
+      $('#clearNotice').addEventListener('click', ()=>{ $('#noticeText').value=''; previewNotice(); });
+
+      // 점수판 바인딩
+      if ($('#scoreReset')) $('#scoreReset').addEventListener('click', ()=>{ state.score.forEach(t=>t.score=0); renderScoreboard(); });
+      if ($('#scoreAdd')) $('#scoreAdd').addEventListener('click', addTeam);
+      if ($('#scoreRemove')) $('#scoreRemove').addEventListener('click', removeTeam);
+      renderScoreboard();
+      renderTeamEditor();
+
+      // 타이머/스톱워치 바인딩
+      if($('#timerSet')) $('#timerSet').addEventListener('click', setTimerFromInput);
+      if($('#timerStartPause')) $('#timerStartPause').addEventListener('click', function(){ state.tmr.running?pauseTimer():startTimer(); });
+      if($('#timerReset')) $('#timerReset').addEventListener('click', resetTimer);
+      if($('#timerInput')) $('#timerInput').addEventListener('keydown', function(e){ if(e.key==='Enter'){ setTimerFromInput(); }});
+      if($('#swStartStop')) $('#swStartStop').addEventListener('click', function(){ state.sw.running?stopStopwatch():startStopwatch(); });
+      if($('#swLap')) $('#swLap').addEventListener('click', lapStopwatch);
+      if($('#swReset')) $('#swReset').addEventListener('click', resetStopwatch);
+      renderTimerUI(); renderStopwatch();
+
+      $('#darkToggle').addEventListener('click', ()=>applyTheme(!document.documentElement.classList.contains('dark')));
+      $('#saveAll').addEventListener('click', saveAll);
+
+      // 확대 모달 바인딩
+      var tz=$('#timerZoom'); if(tz) tz.addEventListener('click', function(){ openTimeModal('timer'); });
+      var sz=$('#swZoom'); if(sz) sz.addEventListener('click', function(){ openTimeModal('sw'); });
+      var tmc=$('#timeModalClose'); if(tmc) tmc.addEventListener('click', closeTimeModal);
+      var tmb=$('#timeModalBackdrop'); if(tmb) tmb.addEventListener('click', closeTimeModal);
+
+      renderSeats();
+      previewNotice();
+      if (localStorage.getItem('easyban:devtests')==='1') runDevTests();
+    });
+
+    window.addEventListener('beforeunload', stopNoise);
+  </script>
+</body>
+</html>
